@@ -11,17 +11,19 @@ class MyDiscordBot {
     public function __construct($token) {
         echo "🔄 A iniciar o bot...\n";
 
-        // Ativa todos os intents para garantir acesso completo às guilds e mensagens
+        // Usa apenas os intents necessários: guilds e guild_messages
         $this->discord = new Discord([
             'token'   => $token,
-            'intents' => Discord::INTENTS_ALL,
+            'intents' => (Discord::INTENTS_GUILDS | Discord::INTENTS_GUILD_MESSAGES),
         ]);
 
         // Quando o bot estiver pronto
         $this->discord->on('ready', function (Discord $discord) {
             echo "✅ O bot está online!\n";
+            
+            // Temporariamente comentado para testar
+            /*
             echo "🔄 A tentar atualizar a presença...\n";
-
             try {
                 $discord->updatePresence([
                     'status'   => 'online',
@@ -34,6 +36,7 @@ class MyDiscordBot {
             } catch (Exception $e) {
                 echo "❌ Erro ao atualizar a presença: " . $e->getMessage() . "\n";
             }
+            */
 
             $this->registerEvents($discord);
         });
