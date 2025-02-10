@@ -11,39 +11,17 @@ class MyDiscordBot {
 
     public function __construct($token) {
         echo "🔄 A iniciar o bot...\n";
-
-        // Usa os intents necessários, incluindo MESSAGE_CONTENT para capturar o conteúdo das mensagens
         $this->discord = new Discord([
             'token'   => $token,
             'intents' => Intents::GUILDS | Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
         ]);
-
-        // Quando o bot estiver pronto
         $this->discord->on('ready', function (Discord $discord) {
             echo "✅ O bot está online!\n";
-            
-            // (Opcional) Atualiza a presença
-            /*
-            echo "🔄 A tentar atualizar a presença...\n";
-            try {
-                $discord->updatePresence([
-                    'status'   => 'online',
-                    'activity' => [
-                        'name' => 'a dominar o mundo!',
-                        'type' => 0, // 0 = Jogando
-                    ]
-                ]);
-                echo "✅ Presença atualizada!\n";
-            } catch (Exception $e) {
-                echo "❌ Erro ao atualizar a presença: " . $e->getMessage() . "\n";
-            }
-            */
             $this->registerEvents($discord);
         });
     }
 
     private function registerEvents(Discord $discord) {
-        // Evento de mensagem recebida
         $discord->on(Event::MESSAGE_CREATE, function (Message $message, Discord $discord) {
             // Ignora mensagens de outros bots
             if ($message->author->bot) {
@@ -54,7 +32,6 @@ class MyDiscordBot {
     }
 
     private function handleMessage(Message $message) {
-        // Converte a mensagem para minúsculas e remove espaços extras
         $content = strtolower(trim($message->content));
         echo "📩 Mensagem recebida: {$content}\n";
 
@@ -67,6 +44,12 @@ class MyDiscordBot {
                 $message->reply('👋 Olá, esperto!');
                 echo "📩 Comando '!ola' processado!\n";
                 break;
+            case '!sorare':
+                // Chama a função que consulta a API do Sorare usando o email
+                $name = getSorareUserName("farialves2007@gmail.com");
+                $message->reply("O teu nome é: " . $name);
+                echo "📩 Comando '!sorare' processado!\n";
+                break;
             default:
                 echo "📩 Mensagem ignorada: {$content}\n";
                 break;
@@ -78,9 +61,23 @@ class MyDiscordBot {
     }
 }
 
+// Função que consulta a API do Sorare e tenta obter o nome do utilizador
+function getSorareUserName($email) {
+    $url = "https://api.sorare.com/api/v1/users/" . urlencode($email);
+    $response = file_get_contents($url);
+    if ($response === false) {
+         return "Não foi possível obter o nome (erro na requisição)";
+    }
+    $data = json_decode($response, true);
+    if (isset($data['name'])) {
+         return $data['name'];
+    }
+    // Se não houver 'name', extrai a parte antes do "@" do email
+    return strstr($email, '@', true);
+}
+
 // Obtém o token a partir das variáveis de ambiente
 $token = getenv('DISCORD_TOKEN');
-
 if (!$token) {
     echo "❌ ERRO: Token não definido! Configura a variável de ambiente DISCORD_TOKEN.\n";
     exit(1);
