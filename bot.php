@@ -12,7 +12,7 @@ class MyDiscordBot {
     public function __construct($token) {
         echo "🔄 A iniciar o bot...\n";
 
-        // Configura os intents necessários para captar mensagens (incluindo o conteúdo)
+        // Configura os intents necessários
         $this->discord = new Discord([
             'token'   => $token,
             'intents' => Intents::GUILDS | Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
@@ -51,7 +51,7 @@ class MyDiscordBot {
                 echo "📩 Comando '!ola' processado!\n";
                 break;
             case '!sorare':
-                // Lista os jogadores do clube na API do Sorare usando o slug "farialves2007"
+                // Lista os jogadores do clube do Sorare para o slug "farialves2007"
                 $players = getSorareUserPlayers("farialves2007");
                 if (is_array($players)) {
                     $reply = "Os teus jogadores no clube: " . implode(", ", $players);
@@ -93,24 +93,28 @@ GRAPHQL;
         "slug" => $slug
     ];
 
-    $data = json_encode([
+    $payload = json_encode([
         "query" => $query,
         "variables" => $variables
     ]);
 
-    $options = [
-        "http" => [
-            "header"  => "Content-Type: application/json",
-            "method"  => "POST",
-            "content" => $data
-        ]
-    ];
-    $context = stream_context_create($options);
-    $result = file_get_contents($url, false, $context);
-    if ($result === false) {
-         return "Erro ao contactar a API do Sorare.";
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    $response = curl_exec($ch);
+
+    if ($response === false) {
+         $error = curl_error($ch);
+         curl_close($ch);
+         return "Erro ao contactar a API do Sorare: " . $error;
     }
-    $resultJson = json_decode($result, true);
+    curl_close($ch);
+
+    $resultJson = json_decode($response, true);
     if (isset($resultJson['data']['user']['cards']['nodes'])) {
          $nodes = $resultJson['data']['user']['cards']['nodes'];
          $players = [];
@@ -124,13 +128,12 @@ GRAPHQL;
          }
          return $players;
     } else {
-         return "Não foram encontrados jogadores.";
+         return "Não foram encontrados jogadores. Resposta da API: " . $response;
     }
 }
 
 // Obtém o token a partir das variáveis de ambiente
 $token = getenv('DISCORD_TOKEN');
-
 if (!$token) {
     echo "❌ ERRO: Token não definido! Configura a variável de ambiente DISCORD_TOKEN.\n";
     exit(1);
