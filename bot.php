@@ -78,10 +78,12 @@ function getSorareUserPlayers($slug) {
     $query = <<<'GRAPHQL'
 query GetUserCards($slug: String!) {
   user(slug: $slug) {
-    cards {
+    cards(first: 50) {
       nodes {
-        player {
-          displayName
+        ... on TokenCard {
+          player {
+            displayName
+          }
         }
       }
     }
