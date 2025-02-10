@@ -4,6 +4,7 @@ require __DIR__ . '/vendor/autoload.php';
 use Discord\Discord;
 use Discord\Parts\Channel\Message;
 use Discord\WebSockets\Event;
+use Discord\WebSockets\Intents;
 
 class MyDiscordBot {
     private $discord;
@@ -11,17 +12,17 @@ class MyDiscordBot {
     public function __construct($token) {
         echo "🔄 A iniciar o bot...\n";
 
-        // Usa apenas os intents necessários: guilds e guild_messages
+        // Usa apenas os intents necessários: GUILDS e GUILD_MESSAGES
         $this->discord = new Discord([
             'token'   => $token,
-            'intents' => (Discord::INTENTS_GUILDS | Discord::INTENTS_GUILD_MESSAGES),
+            'intents' => Intents::GUILDS | Intents::GUILD_MESSAGES,
         ]);
 
         // Quando o bot estiver pronto
         $this->discord->on('ready', function (Discord $discord) {
             echo "✅ O bot está online!\n";
             
-            // Temporariamente comentado para testar
+            // (Opcional) Atualizar a presença
             /*
             echo "🔄 A tentar atualizar a presença...\n";
             try {
