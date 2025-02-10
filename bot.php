@@ -4,20 +4,21 @@ require __DIR__ . '/vendor/autoload.php';
 use Discord\Discord;
 use Discord\Parts\Channel\Message;
 use Discord\WebSockets\Event;
-use GuzzleHttp\Client;
+use Discord\WebSockets\Intents;
 
 class MyDiscordBot {
     private $discord;
-    private $sorareUserSlug = "farialves2007"; // Substitui pelo teu username do Sorare
 
     public function __construct($token) {
         echo "🔄 A iniciar o bot...\n";
 
+        // Configura os intents necessários
         $this->discord = new Discord([
             'token'   => $token,
-            'intents' => Discord::INTENTS_ALL,
+            'intents' => Intents::GUILDS | Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
         ]);
 
+        // Quando o bot estiver pronto
         $this->discord->on('ready', function (Discord $discord) {
             echo "✅ O bot está online!\n";
             $this->registerEvents($discord);
@@ -25,71 +26,44 @@ class MyDiscordBot {
     }
 
     private function registerEvents(Discord $discord) {
+        // Evento de mensagem recebida
         $discord->on(Event::MESSAGE_CREATE, function (Message $message, Discord $discord) {
+            // Ignora mensagens de outros bots
             if ($message->author->bot) {
                 return;
             }
-            
-            $content = strtolower(trim($message->content));
-            echo "📩 Mensagem recebida: {$content}\n";
-
-            if ($content === '!sorare') {
-                $this->handleSorareCommand($message);
-            }
+            $this->handleMessage($message);
         });
     }
 
-    private function handleSorareCommand(Message $message) {
-        $message->reply("🔄 A procurar os jogadores do clube...");
-        $players = $this->getSorarePlayers();
+    private function handleMessage(Message $message) {
+        // Converte a mensagem para minúsculas e remove espaços extras
+        $content = strtolower(trim($message->content));
+        echo "📩 Mensagem recebida: {$content}\n";
 
-        if ($players === null) {
-            $message->reply("❌ Erro ao contactar a API do Sorare.");
-        } elseif (empty($players)) {
-            $message->reply("⚽ Nenhum jogador encontrado no clube.");
-        } else {
-            $response = "⚽ Jogadores do clube:\n" . implode("\n", array_map(fn($p) => "- {$p}", $players));
-            $message->reply($response);
-        }
-    }
-
-    private function getSorarePlayers() {
-        $client = new Client(['base_uri' => 'https://api.sorare.com/graphql']);
-
-        $query = <<<GRAPHQL
-        query getUserCards(\$slug: String!) {
-            user(slug: \$slug) {
-                anyCards {
-                    player {
-                        displayName
-                    }
+        switch ($content) {
+            case '!ping':
+                $message->reply('🏓 Pong!');
+                echo "📩 Comando '!ping' processado!\n";
+                break;
+            case '!ola':
+                $message->reply('👋 Olá, esperto!');
+                echo "📩 Comando '!ola' processado!\n";
+                break;
+            case '!sorare':
+                // Lista os jogadores do clube do Sorare para o slug "farialves2007"
+                $players = getSorareUserPlayers("farialves2007");
+                if (is_array($players)) {
+                    $reply = "Os teus jogadores no clube: " . implode(", ", $players);
+                } else {
+                    $reply = $players;
                 }
-            }
-        }
-        GRAPHQL;
-
-        try {
-            $response = $client->post('', [
-                'json' => [
-                    'query' => $query,
-                    'variables' => ['slug' => $this->sorareUserSlug]
-                ],
-                'headers' => ['Content-Type' => 'application/json']
-            ]);
-
-            $data = json_decode($response->getBody(), true);
-            
-            if (!isset($data['data']['user']['anyCards'])) {
-                return null;
-            }
-
-            $cards = $data['data']['user']['anyCards'];
-            $players = array_map(fn($card) => $card['player']['displayName'] ?? 'Desconhecido', $cards);
-
-            return $players;
-        } catch (\Exception $e) {
-            echo "❌ Erro na API do Sorare: " . $e->getMessage() . "\n";
-            return null;
+                $message->reply($reply);
+                echo "📩 Comando '!sorare' processado!\n";
+                break;
+            default:
+                echo "📩 Mensagem ignorada: {$content}\n";
+                break;
         }
     }
 
@@ -98,14 +72,76 @@ class MyDiscordBot {
     }
 }
 
-// Obtém o token do Discord das variáveis de ambiente
-$token = getenv('DISCORD_TOKEN');
+// Função que consulta a API GraphQL do Sorare e retorna os nomes dos jogadores
+function getSorareUserPlayers($slug) {
+    $url = "https://api.sorare.com/graphql";
+    $query = <<<'GRAPHQL'
+query GetUserCards($slug: String!) {
+  user(slug: $slug) {
+    anyCards {
+      slug
+      name
+      rarityTyped
+      player {
+        displayName
+      }
+    }
+  }
+}
+GRAPHQL;
 
-if (!$token) {
-    echo "❌ ERRO: Token do Discord não definido! Configura a variável de ambiente DISCORD_TOKEN.\n";
-    exit(1);
+    $variables = [
+        "slug" => $slug
+    ];
+
+    $payload = json_encode([
+        "query" => $query,
+        "variables" => $variables
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    $response = curl_exec($ch);
+
+    if ($response === false) {
+         $error = curl_error($ch);
+         curl_close($ch);
+         return "Erro ao contactar a API do Sorare: " . $error;
+    }
+    curl_close($ch);
+
+    $resultJson = json_decode($response, true);
+    if (isset($resultJson['data']['user']['anyCards'])) {
+         $cards = $resultJson['data']['user']['anyCards'];
+         $players = [];
+         foreach ($cards as $card) {
+             if (isset($card['player']['displayName'])) {
+                 $players[] = $card['player']['displayName'];
+             }
+         }
+         if (empty($players)) {
+             return "Não tens jogadores no clube.";
+         }
+         return $players;
+    } else {
+         return "Não foram encontrados jogadores. Resposta da API: " . $response;
+    }
 }
 
-// Inicia o bot
+// Obtém o token a partir das variáveis de ambiente
+$token = getenv('DISCORD_TOKEN');
+if (!$token) {
+    echo "❌ ERRO: Token não definido! Configura a variável de ambiente DISCORD_TOKEN.\n";
+    exit(1);
+} else {
+    echo "🔑 Token carregado com sucesso!\n";
+}
+
+// Cria a instância do bot e inicia
 $bot = new MyDiscordBot($token);
 $bot->run();
