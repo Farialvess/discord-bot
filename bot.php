@@ -78,13 +78,12 @@ function getSorareUserPlayers($slug) {
     $query = <<<'GRAPHQL'
 query GetUserCards($slug: String!) {
   user(slug: $slug) {
-    cards(first: 50) {
-      nodes {
-        ... on TokenCard {
-          player {
-            displayName
-          }
-        }
+    anyCards {
+      slug
+      name
+      rarityTyped
+      player {
+        displayName
       }
     }
   }
@@ -117,12 +116,12 @@ GRAPHQL;
     curl_close($ch);
 
     $resultJson = json_decode($response, true);
-    if (isset($resultJson['data']['user']['cards']['nodes'])) {
-         $nodes = $resultJson['data']['user']['cards']['nodes'];
+    if (isset($resultJson['data']['user']['anyCards'])) {
+         $cards = $resultJson['data']['user']['anyCards'];
          $players = [];
-         foreach ($nodes as $node) {
-             if (isset($node['player']['displayName'])) {
-                 $players[] = $node['player']['displayName'];
+         foreach ($cards as $card) {
+             if (isset($card['player']['displayName'])) {
+                 $players[] = $card['player']['displayName'];
              }
          }
          if (empty($players)) {
